@@ -14,3 +14,7 @@ CREATE TABLE IF NOT EXISTS accounts.event_outbox (
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_account_outbox_due ON accounts.event_outbox(next_attempt_at, created_at);
+CREATE TABLE IF NOT EXISTS accounts.event_outbox_versions (
+  entity_key VARCHAR(300) PRIMARY KEY,
+  version BIGINT NOT NULL CHECK (version > 0)
+);

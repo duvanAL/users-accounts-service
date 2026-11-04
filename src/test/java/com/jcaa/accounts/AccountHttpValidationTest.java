@@ -14,7 +14,8 @@ import org.springframework.http.*;
 
 /** Uses real HTTP dispatching; MockMvc does not reproduce the protected /error dispatch. */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
-    "spring.datasource.url=jdbc:h2:mem:http-validation;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+    "spring.datasource.url=jdbc:tc:postgresql:17-alpine:///http-validation",
+    "spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver",
     "spring.datasource.username=sa", "spring.datasource.password=",
     "spring.sql.init.mode=always", "app.kafka.enabled=false",
     "JWT_SECRET=dGVzdC1vbmx5LWp3dC1zZWNyZXQtd2l0aC1hdC1sZWFzdC0zMi1ieXRlcw=="

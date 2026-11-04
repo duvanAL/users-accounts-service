@@ -25,7 +25,8 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @SpringBootTest(
     properties = {
-      "spring.datasource.url=jdbc:h2:mem:accounts;MODE=PostgreSQL;DB_CLOSE_DELAY=-1",
+      "spring.datasource.url=jdbc:tc:postgresql:17-alpine:///accounts",
+      "spring.datasource.driver-class-name=org.testcontainers.jdbc.ContainerDatabaseDriver",
       "spring.datasource.username=sa",
       "spring.datasource.password=",
       "spring.sql.init.mode=always",
@@ -38,6 +39,7 @@ class AccountIntegrationTest {
       "dGVzdC1vbmx5LWp3dC1zZWNyZXQtd2l0aC1hdC1sZWFzdC0zMi1ieXRlcw==";
   @Autowired MockMvc mvc;
   @Autowired JdbcTemplate jdbc;
+  @Autowired org.springframework.transaction.PlatformTransactionManager transactionManager;
   @Autowired ObjectMapper mapper;
   @MockBean UserDirectory users;
   @SpyBean JdbcEventOutbox outbox;
@@ -131,8 +133,9 @@ class AccountIntegrationTest {
 
   @Test
   void outboxRetainsFailedEventsAndDeletesOnlyAfterConfirmation() {
-    DomainEvent event = DomainEvent.create("account.created", java.util.Map.of("userId", "usr-1"));
-    outbox.enqueue(event);
+    DomainEvent event = DomainEvent.create("account.created", java.util.Map.of("userId", "usr-1", "accountId", "account-1"));
+    new org.springframework.transaction.support.TransactionTemplate(transactionManager)
+        .executeWithoutResult(status -> outbox.enqueue(event));
     new com.jcaa.events.jdbc.OutboxRelay(
             outbox,
             (key, body) -> {
