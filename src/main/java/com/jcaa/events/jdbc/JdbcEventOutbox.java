@@ -7,7 +7,9 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.HashMap;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 /** Table name is selected by trusted service configuration, never by a request. */
 public class JdbcEventOutbox {
@@ -24,11 +26,31 @@ public class JdbcEventOutbox {
   }
 
   public void enqueue(DomainEvent event) {
+    if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+      throw new IllegalStateException("Enqueue requires the business transaction.");
+    }
     try {
+      String entityId = event.payload().get(
+          event.eventName().startsWith("account.") ? "accountId" : "userId");
+      if (entityId == null || entityId.isBlank()) {
+        throw new IllegalArgumentException("Event entity identifier is required.");
+      }
+      String entityKey = (event.eventName().startsWith("account.") ? "account:" : "user:")
+          + entityId;
+      // The counter row stays after deletion and is locked until the business transaction ends.
+      Long version = jdbc.queryForObject(
+          "INSERT INTO " + table + "_versions AS current (entity_key, version)"
+              + " VALUES (?, 1) ON CONFLICT (entity_key)"
+              + " DO UPDATE SET version = current.version + 1 RETURNING version",
+          Long.class, entityKey);
+      var payload = new HashMap<>(event.payload());
+      payload.put("projectionVersion", Long.toString(version));
+      DomainEvent versioned = new DomainEvent(
+          event.schemaVersion(), event.eventId(), event.eventName(), event.occurredOn(), payload);
       jdbc.update(
           "INSERT INTO " + table + " (event_id, event_json) VALUES (?, ?)",
           event.eventId(),
-          mapper.writeValueAsString(event));
+          mapper.writeValueAsString(versioned));
     } catch (JsonProcessingException exception) {
       throw new IllegalStateException("Could not encode event.", exception);
     }
