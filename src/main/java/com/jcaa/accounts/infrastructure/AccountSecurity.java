@@ -80,6 +80,8 @@ public class AccountSecurity {
                     .permitAll()
                     .requestMatchers(HttpMethod.POST, "/api/accounts")
                     .hasRole("ADMIN")
+                    .requestMatchers(HttpMethod.GET, "/api/me/accounts")
+                    .authenticated()
                     .requestMatchers(HttpMethod.GET, "/api/accounts", "/api/accounts/**")
                     .hasAnyRole("ADMIN", "REVIEWER")
                     .anyRequest()

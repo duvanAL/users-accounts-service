@@ -64,5 +64,27 @@ class AccountHttpValidationTest {
     assertThat(post("{\"userId\":\"missing\",\"accountType\":\"SAVINGS\"}", "ADMIN")
         .getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
   }
+  @Autowired org.springframework.jdbc.core.JdbcTemplate jdbc;
+
+  @Test
+  void personalAccountsAlwaysUseJwtSubjectForAllRoles() {
+    var own = java.util.UUID.randomUUID();
+    var other = java.util.UUID.randomUUID();
+    jdbc.update("INSERT INTO accounts.accounts(id,user_id,account_type) VALUES (?,?,'SAVINGS')", own, "demo-admin");
+    jdbc.update("INSERT INTO accounts.accounts(id,user_id,account_type) VALUES (?,?,'SAVINGS')", other, "someone-else");
+    try {
+      for (String role : new String[] {"ADMIN", "REVIEWER", "MEMBER"}) {
+        var headers = new HttpHeaders();
+        headers.set("Authorization", AccountIntegrationTest.bearer(role));
+        var response = http.exchange("/api/me/accounts?userId=someone-else", HttpMethod.GET,
+            new HttpEntity<>(headers), String.class);
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).contains(own.toString()).doesNotContain(other.toString());
+      }
+      assertThat(http.getForEntity("/api/me/accounts", String.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    } finally {
+      jdbc.update("DELETE FROM accounts.accounts WHERE id IN (?,?)", own, other);
+    }
+  }
 }
 
